@@ -618,6 +618,7 @@ class OperationType(Enum):
     TrainKnnModel = (19, AdminStatus.No, ServerlessStatus.Public)
     DeleteKnnModel = (20, AdminStatus.No, ServerlessStatus.Public)
     ProduceStreamMessage = (21, AdminStatus.No, ServerlessStatus.Blocked)
+    PplQuery = (56, AdminStatus.No, ServerlessStatus.Public)
 
     # administrative actions
     ForceMerge = (22, AdminStatus.Yes, ServerlessStatus.Blocked)
@@ -698,6 +699,8 @@ class OperationType(Enum):
             return OperationType.Bulk
         elif v == "raw-request":
             return OperationType.RawRequest
+        elif v == "ppl-query":
+            return OperationType.PplQuery
         elif v == "put-pipeline":
             return OperationType.PutPipeline
         elif v == "delete-pipeline":

@@ -64,6 +64,7 @@ def register_default_runners():
     register_runner(workload.OperationType.VectorSearch, Query(), async_runner=True)
     register_runner(workload.OperationType.BulkVectorDataSet, BulkVectorDataSet(), async_runner=True)
     register_runner(workload.OperationType.RawRequest, RawRequest(), async_runner=True)
+    register_runner(workload.OperationType.PplQuery, PplQuery(), async_runner=True)
     register_runner(workload.OperationType.Composite, Composite(), async_runner=True)
     register_runner(workload.OperationType.SubmitAsyncSearch, SubmitAsyncSearch(), async_runner=True)
     register_runner(workload.OperationType.GetAsyncSearch, Retry(GetAsyncSearch(), retry_until_success=True), async_runner=True)
@@ -2588,6 +2589,7 @@ class Composite(Runner):
             "search",
             "paginated-search",
             "raw-request",
+            "ppl-query",
             "sleep",
             "submit-async-search",
             "get-async-search",
@@ -2920,6 +2922,54 @@ class UpdateConcurrentSegmentSearchSettings(Runner):
 
     def __repr__(self, *args, **kwargs):
         return "update-concurrent-segment-search-settings"
+
+class PplQuery(Runner):
+    """
+    Runs a PPL query against OpenSearch.
+    """
+    
+    async def __call__(self, opensearch, params):
+        request_params, headers = self._transport_request_params(params)
+        body = mandatory(params, "body", self)
+        detailed_results = params.get("detailed-results", False)
+        
+        # disable eager response parsing - responses might be huge thus skewing results
+        opensearch.return_raw_response()
+        
+        request_context_holder.on_client_request_start()
+        response = await opensearch.transport.perform_request(
+            "POST", 
+            "/_plugins/_ppl", 
+            params=request_params, 
+            body=body, 
+            headers=headers
+        )
+        request_context_holder.on_client_request_end()
+        
+        if detailed_results:
+            props = parse(response, ["schema", "datarows", "total", "size", "status"])
+            total = props.get("total", 0)
+            size = props.get("size", 0)
+            status = props.get("status", 0)
+            
+            return {
+                "weight": 1,
+                "unit": "ops",
+                "success": True,
+                "hits": total,
+                "size": size,
+                "status": status
+            }
+        else:
+            return {
+                "weight": 1,
+                "unit": "ops",
+                "success": True
+            }
+    
+    def __repr__(self, *args, **kwargs):
+        return "ppl-query"
+
 
 class ProduceStreamMessage(Runner):
     # Class-level counter that persists across calls to __call__
