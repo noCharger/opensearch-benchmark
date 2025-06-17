@@ -2923,49 +2923,25 @@ class UpdateConcurrentSegmentSearchSettings(Runner):
     def __repr__(self, *args, **kwargs):
         return "update-concurrent-segment-search-settings"
 
-class PplQuery(Runner):
+class PplQuery(Query):
     """
     Runs a PPL query against OpenSearch.
     """
     
-    async def __call__(self, opensearch, params):
-        request_params, headers = self._transport_request_params(params)
-        body = mandatory(params, "body", self)
-        detailed_results = params.get("detailed-results", False)
-        
-        # disable eager response parsing - responses might be huge thus skewing results
-        opensearch.return_raw_response()
-        
+    async def _raw_search(self, opensearch, doc_type, index, body, params, headers=None):
+        """
+        Override the _raw_search method to send the request to the PPL endpoint
+        """
         request_context_holder.on_client_request_start()
         response = await opensearch.transport.perform_request(
             "POST", 
             "/_plugins/_ppl", 
-            params=request_params, 
+            params=params, 
             body=body, 
-            headers=headers
+            headers=headers or {}
         )
         request_context_holder.on_client_request_end()
-        
-        if detailed_results:
-            props = parse(response, ["schema", "datarows", "total", "size", "status"])
-            total = props.get("total", 0)
-            size = props.get("size", 0)
-            status = props.get("status", 0)
-            
-            return {
-                "weight": 1,
-                "unit": "ops",
-                "success": True,
-                "hits": total,
-                "size": size,
-                "status": status
-            }
-        else:
-            return {
-                "weight": 1,
-                "unit": "ops",
-                "success": True
-            }
+        return response
     
     def __repr__(self, *args, **kwargs):
         return "ppl-query"
